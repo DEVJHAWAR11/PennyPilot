@@ -72,6 +72,7 @@ async def handle_photo_message(message: Message, bot: Bot) -> None:
                 }
             ],
             "temperature": 0.1,  # Keep it deterministic
+            "reasoning_effort": "none",
             "max_tokens": 50
         }
         

@@ -18,6 +18,7 @@ from bot.handlers.categories import router as categories_router
 from bot.handlers.logging import router as logging_router
 from bot.handlers.voice import router as voice_router
 from bot.handlers.photo import router as photo_router
+from bot.handlers.stats import router as stats_router
 
 
 def main() -> None:
@@ -47,6 +48,7 @@ def main() -> None:
     dp.include_router(categories_router)
     dp.include_router(voice_router)
     dp.include_router(photo_router)
+    dp.include_router(stats_router)
     dp.include_router(logging_router)
 
     # Initialize the database (creates tables if they don't exist)

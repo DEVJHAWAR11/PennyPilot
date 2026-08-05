@@ -39,8 +39,9 @@ async def cmd_help(message: Message) -> None:
         "*Commands:*\n"
         "/start — Welcome message\n"
         "/help — This help menu\n"
-        "/categories — Manage your categories and keywords\n\n"
-        "🚧 More commands coming soon — balance, stats, "
-        "charts, exports, and more!",
+        "/categories — Manage your custom categories and keywords.\n"
+        "/balance — See your income, expenses, and net balance for the month.\n"
+        "/stats — View a breakdown of your spending for past months.\n"
+        "/settings — Change your financial month start day (e.g. payday).\n",
         parse_mode="Markdown",
     )
