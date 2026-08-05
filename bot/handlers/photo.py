@@ -19,7 +19,7 @@ from bot.handlers.logging import process_transaction_text
 router = Router()
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
-VISION_MODEL = "llama-3.2-11b-vision-preview"
+VISION_MODEL = "qwen/qwen3.6-27b"
 
 @router.message(F.photo)
 async def handle_photo_message(message: Message, bot: Bot) -> None:
@@ -85,7 +85,9 @@ async def handle_photo_message(message: Message, bot: Bot) -> None:
                     return
                     
                 result = await response.json()
-                extracted_text = result['choices'][0]['message']['content'].strip()
+                raw_text = result['choices'][0]['message']['content']
+                import re
+                extracted_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
 
         logging.info(f"Groq Vision API Extracted: '{extracted_text}'")
 

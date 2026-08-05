@@ -47,7 +47,7 @@ async def handle_voice_message(message: Message, bot: Bot) -> None:
         # Whisper API expects a file, we provide the raw bytes with an .ogg extension 
         # (Telegram voice notes are typically OGG Opus)
         data.add_field('file', voice_bytes.getvalue(), filename='voice.ogg', content_type='audio/ogg')
-        data.add_field('model', 'distil-whisper-large-v3-en')
+        data.add_field('model', 'whisper-large-v3')
         
         async with aiohttp.ClientSession() as session:
             async with session.post(GROQ_TRANSCRIPTION_URL, headers=headers, data=data) as response:
