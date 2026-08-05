@@ -133,10 +133,26 @@ async def get_category_by_id(category_id: int) -> Optional[dict]:
 async def get_keyword_match(telegram_id: int, keyword: str) -> Optional[dict]:
     """
     Look up a keyword for this user. Returns the category dict if found, None otherwise.
+    First checks if the word matches a category name exactly, then checks the keywords table.
     Matching is case-insensitive.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        
+        # 1. Try matching the exact category name
+        async with db.execute(
+            """
+            SELECT c.* FROM categories c
+            JOIN users u ON c.user_id = u.id
+            WHERE u.telegram_id = ? AND LOWER(c.name) = LOWER(?)
+            """,
+            (telegram_id, keyword),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+                
+        # 2. Try matching a mapped keyword
         async with db.execute(
             """
             SELECT c.* FROM keywords k
