@@ -68,7 +68,7 @@ async def send_monthly_summaries(bot: Bot, force_run_for_user_id: int = None) ->
         user_prompt = SUMMARY_SYSTEM_PROMPT + "\n\n" + context
         
         thread_id = f"monthly_summary_{telegram_id}_{closed_start.strftime('%Y%m')}"
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 5}
         inputs = {"messages": [HumanMessage(content=user_prompt)]}
         
         try:
