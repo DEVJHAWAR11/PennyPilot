@@ -1,70 +1,97 @@
-# PennyPilot 🚁
+# PennyPilot: Advanced Agentic Finance Bot
 
-A lightweight, agentic Telegram bot for tracking expenses and income seamlessly. Built with Python and `aiogram`, it allows you to log transactions via text, voice, or photo receipts.
+## Problem Statement
+Personal finance apps are inherently frictionless to install but incredibly high-friction to maintain. Users forget to log expenses, find it tedious to manually enter data, and struggle to query their own spending habits. PennyPilot solves this by bringing expense tracking directly into the platform where users already spend their time: Telegram. By combining deterministic parsing for quick logs and advanced LLM agentic flows for voice inputs, natural language queries, and anomaly detection, it provides a frictionless, autonomous financial assistant.
 
-## Features
+## Features List
 
-- **Text Logging:** Send messages like `45 groceries` or `2500 salary`.
-- **Voice Logging:** Send a voice note (powered by Groq Whisper).
-- **Receipt Parsing:** Send a photo of a receipt to extract the total amount (powered by Groq Vision).
-- **Categories:** Add, rename, and delete custom categories, and map keywords to them.
-- **Charts & Stats:** View monthly breakdowns, pie charts, and net balance.
-- **Exports:** Download your financial history as a CSV or a monthly PDF statement.
-- **Recent:** View and edit your most recent transactions.
-- **No Spreadsheets:** Stop wrangling formulas and let the bot do the work.
+### Input Methods
+- **Quick Text Logging**: Fast, deterministic regex parsing for standard entries (e.g., "200 food").
+- **Voice Memos**: Send an audio note ("I spent 400 on swiggy") and Whisper API transcribes it.
+- **Image Parsing**: Upload a receipt and the bot automatically extracts the amount and category.
+
+### Agentic Capabilities (LLM-Driven)
+- **Natural Language Queries**: Ask complex questions ("How much did I spend on food this month?") and the AI agent retrieves data via MCP tools to answer.
+- **Autonomous Anomaly Alerting**: A scheduled background job that analyzes recent spending patterns, detects anomalies (e.g., spending 50% more on food than usual), and proactively messages the user.
+- **Automated Monthly Summaries**: Automatically generates and sends a summary report on the 1st of every month.
+
+### System & Management
+- **Category Management**: Create, delete, and customize categories with emojis.
+- **Visual Analytics**: In-memory generation of pie charts to visualize spending distribution.
+- **Data Export**: Export entire transaction history to CSV, or generate a formatted PDF statement for any month.
+- **Zero-Downtime Resilience**: Deployed via Webhooks on Render with a separate worker database pool configured to respect free-tier constraints.
 
 ## Tech Stack
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| **Language** | Python 3.11+ | Core application logic. |
+| **Bot Framework** | aiogram (v3) | Async handling of Telegram webhooks and commands. |
+| **Database** | Supabase (PostgreSQL) | Persistent, cloud-hosted relational database. |
+| **DB Driver** | asyncpg | High-performance async driver with pool limits. |
+| **Agent Framework**| LangGraph | Orchestrates the AI agent's decision-making loop. |
+| **Tooling Protocol**| MCP (FastMCP) | Standardized, isolated tool execution in a background process. |
+| **LLM Provider** | Groq API | Fast, free-tier access for LLaMA 3 and Whisper. |
+| **Scheduling** | APScheduler | Background cron jobs for anomalies and summaries. |
+| **Data Viz** | matplotlib / reportlab | Chart and PDF generation in-memory. |
 
-- **Python 3.11+**
-- **aiogram (v3)** — Modern async Telegram bot framework
-- **asyncpg** — High-performance async PostgreSQL driver
-- **matplotlib** — For generating in-memory pie charts
-- **reportlab** — For generating PDF financial statements
-- **Groq API** — For fast, free-tier voice transcription and vision extraction
+## Architecture Diagram
+```text
+┌────────────────┐      (Webhook)       ┌────────────────────────┐
+│ Telegram Cloud │ ───────────────────> │ aiohttp Webhook Server │
+└────────────────┘                      └──────────┬─────────────┘
+                                                   │
+    ┌──────────────────────────────────────────────┴───────────────────────────────────────────┐
+    │                                aiogram Dispatcher                                        │
+    └──────────┬─────────────────────────────┬───────────────────────────┬─────────────────────┘
+               │                             │                           │
+      [Deterministic Flow]          [Scheduled Background]       [Agentic Flow (LangGraph)]
+     Regex Parsers / Menus           APScheduler (Cron)          ┌───────────────────────┐
+               │                             │                   │   LangGraph Agent     │
+               │                             │                   │  (LLaMA 3 via Groq)   │
+               │                             │                   └──────────┬────────────┘
+               │                             │                              │  Tool Calls
+               │                             │                              V 
+               │                             │                   ┌───────────────────────┐
+               │                             │                   │      MCP Server       │
+               │                             │                   │ (Background Process)  │
+               └─────────────────────────────┼───────────────────┴───────────────────────┘
+                                             │
+                                   ┌─────────V──────────┐
+                                   │ asyncpg Conn Pool  │
+                                   └─────────┬──────────┘
+                                             V
+                                   ┌────────────────────┐
+                                   │ Supabase Postgres  │
+                                   └────────────────────┘
+```
 
 ## Setup Instructions
-
-1. Clone this repository:
+1. **Clone the repo**
    ```bash
    git clone https://github.com/DEVJHAWAR11/PennyPilot.git
    cd PennyPilot
    ```
-
-2. Create a virtual environment and install dependencies:
+2. **Install Dependencies**
    ```bash
    python -m venv venv
-   # On Windows:
-   .\venv\Scripts\activate
-   # On Linux/Mac:
-   source venv/bin/activate
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
-
-3. Configure your Environment Variables:
-   - Copy `.env.example` to `.env`
-   - Get a bot token from [@BotFather](https://t.me/BotFather) on Telegram and set `BOT_TOKEN`.
-   - Get an API key from [Groq Console](https://console.groq.com) and set `GROQ_API_KEY`.
-   - Setup a PostgreSQL database (e.g., Supabase) and set `DATABASE_URL`.
-   - (Optional) Set `WEBHOOK_URL` to deploy with `aiohttp` webhooks on cloud platforms.
-
-4. Run the Bot:
+3. **Environment Variables**
+   Create a `.env` file:
+   ```env
+   BOT_TOKEN=your_telegram_bot_token
+   GROQ_API_KEY=your_groq_api_key
+   DATABASE_URL=postgresql://user:pass@pooler.supabase.com:6543/postgres
+   WEBHOOK_URL=https://your-render-app.onrender.com/webhook
+   ```
+4. **Run Locally**
+   *(Remove `WEBHOOK_URL` to run in local polling mode)*
    ```bash
    python main.py
    ```
 
-## Usage
-
-Start a chat with your bot on Telegram and send `/start`.
-
-**Commands:**
-- `/categories` - Manage your income and expense categories.
-- `/balance` - Check your current month's net balance and savings rate.
-- `/stats` - View past months and generate visual pie charts.
-- `/export` - Download a CSV or PDF of your finances.
-- `/recent` - View and edit your latest transactions.
-- `/settings` - Configure when your financial month starts.
-- `/help` - View help documentation.
-
-## Project Status
-
-✅ Fully complete. Ready for production deployment on Render.
+## Deployment & Free-Tier Limitations
+- **Render Zero-Downtime:** This bot is configured to safely handle Render's blue-green deployments without race conditions on Telegram's `setWebhook` endpoint.
+- **Supabase Limits:** The `asyncpg` pool is strictly capped at `max_size=5` to prevent exhausting the Supabase free-tier session limit (15) during rolling deployments.
+- **File System:** All charts and PDFs are generated purely in-memory (using `io.BytesIO`) to respect Render's ephemeral filesystem.
