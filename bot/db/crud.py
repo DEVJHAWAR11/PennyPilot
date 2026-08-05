@@ -337,3 +337,30 @@ async def get_transaction_by_id(txn_id: int) -> Optional[dict]:
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
+
+
+async def reset_user_data(telegram_id: int) -> None:
+    """Wipes all records and categories for a user, then seeds the default categories."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
+        ) as cursor:
+            user_row = await cursor.fetchone()
+            
+        if not user_row:
+            return
+            
+        user_id = user_row["id"]
+        
+        # Delete transactions
+        await db.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+        # Delete keywords
+        await db.execute("DELETE FROM keywords WHERE user_id = ?", (user_id,))
+        # Delete categories
+        await db.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
+        await db.commit()
+        
+    # Re-seed default categories
+    from bot.db.schema import seed_categories_for_user
+    await seed_categories_for_user(user_id)
