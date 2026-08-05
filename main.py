@@ -12,6 +12,7 @@ import sys
 from aiogram import Bot, Dispatcher
 
 from bot.config import BOT_TOKEN
+from bot.db.schema import init_db
 from bot.handlers.commands import router as commands_router
 
 
@@ -39,6 +40,10 @@ def main() -> None:
 
     # Register handler routers
     dp.include_router(commands_router)
+
+    # Initialize the database (creates tables if they don't exist)
+    asyncio.run(init_db())
+    logging.info("Database initialized.")
 
     # Start polling (blocks until stopped with Ctrl+C)
     logging.info("PennyPilot is starting...")
