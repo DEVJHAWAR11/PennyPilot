@@ -49,11 +49,10 @@ def generate_pdf(transactions: list[dict], month_label: str, summary: dict) -> b
     )
     elements.append(Paragraph(f"Financial Statement: {month_label}", title_style))
     
-    # Summary Section
     summary_text = (
-        f"<b>Total Income:</b> Rs.{summary['income']:,.2f}<br/>"
-        f"<b>Total Expenses:</b> Rs.{summary['expenses']:,.2f}<br/>"
-        f"<b>Net Balance:</b> Rs.{summary['net']:,.2f}"
+        f"<b>Total Income:</b> ₹{summary['income']:,.2f}<br/>"
+        f"<b>Total Expenses:</b> ₹{summary['expenses']:,.2f}<br/>"
+        f"<b>Net Balance:</b> ₹{summary['net']:,.2f}"
     )
     elements.append(Paragraph(summary_text, styles['Normal']))
     elements.append(Spacer(1, 0.25 * inch))
@@ -71,7 +70,7 @@ def generate_pdf(transactions: list[dict], month_label: str, summary: dict) -> b
                 t["date"],
                 t["type"].capitalize(),
                 t["category_name"],
-                f"Rs.{t['amount']:,.2f}",
+                f"₹{t['amount']:,.2f}",
                 t.get("note", "") or ""
             ])
             
