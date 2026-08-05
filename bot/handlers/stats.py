@@ -52,10 +52,10 @@ async def cmd_balance(message: Message) -> None:
     
     text = (
         f"📊 **Balance ({start_date.strftime('%b %d')} - {end_date.strftime('%b %d')})**\n\n"
-        f"🟢 **Income:** ${income:,.2f}\n"
-        f"🔴 **Expenses:** ${expenses:,.2f}\n"
+        f"🟢 **Income:** ₹{income:,.2f}\n"
+        f"🔴 **Expenses:** ₹{expenses:,.2f}\n"
         f"────────────────\n"
-        f"💰 **Net Balance:** ${net:,.2f}\n"
+        f"💰 **Net Balance:** ₹{net:,.2f}\n"
     )
     
     if savings_pct > 0:
@@ -135,13 +135,13 @@ async def cb_stats_month(query: CallbackQuery, callback_data: StatsMonthCb) -> N
         for name, amount in sorted_cats:
             emoji = cat_emojis.get(name, "")
             pct = (amount / expenses * 100) if expenses > 0 else 0
-            body += f"{emoji} **{name}**: ${amount:,.2f} ({pct:.0f}%)\n"
+            body += f"{emoji} **{name}**: ₹{amount:,.2f} ({pct:.0f}%)\n"
             
     footer = (
         f"\n────────────────\n"
-        f"🟢 **Income:** ${income:,.2f}\n"
-        f"🔴 **Expenses:** ${expenses:,.2f}\n"
-        f"💰 **Net Balance:** ${net:,.2f}\n"
+        f"🟢 **Income:** ₹{income:,.2f}\n"
+        f"🔴 **Expenses:** ₹{expenses:,.2f}\n"
+        f"💰 **Net Balance:** ₹{net:,.2f}\n"
     )
     
     builder = InlineKeyboardBuilder()

@@ -10,6 +10,9 @@ import logging
 import sys
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 
 from bot.config import BOT_TOKEN
 from bot.db.schema import init_db
@@ -19,6 +22,18 @@ from bot.handlers.logging import router as logging_router
 from bot.handlers.voice import router as voice_router
 from bot.handlers.photo import router as photo_router
 from bot.handlers.stats import router as stats_router
+
+
+async def setup_bot_commands(bot: Bot):
+    """Set up the Telegram bot menu commands."""
+    commands = [
+        BotCommand(command="balance", description="View current month balance"),
+        BotCommand(command="stats", description="View past months breakdown"),
+        BotCommand(command="categories", description="Manage categories"),
+        BotCommand(command="settings", description="Change bot settings"),
+        BotCommand(command="help", description="Show help menu")
+    ]
+    await bot.set_my_commands(commands)
 
 
 def main() -> None:
@@ -40,7 +55,7 @@ def main() -> None:
         sys.exit(1)
 
     # Create the bot and dispatcher
-    bot = Bot(token=BOT_TOKEN)
+    bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     # Register handler routers
@@ -51,12 +66,16 @@ def main() -> None:
     dp.include_router(stats_router)
     dp.include_router(logging_router)
 
-    # Initialize the database (creates tables if they don't exist)
-    asyncio.run(init_db())
-    logging.info("Database initialized.")
+    async def on_startup() -> None:
+        logging.info("PennyPilot is starting...")
+        await init_db()
+        await setup_bot_commands(bot)
+        logging.info("Database initialized and commands set.")
+
+    dp.startup.register(on_startup)
 
     # Start polling (blocks until stopped with Ctrl+C)
-    logging.info("PennyPilot is starting...")
+    logging.info("PennyPilot is starting polling...")
     asyncio.run(dp.start_polling(bot))
 
 
