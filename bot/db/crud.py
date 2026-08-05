@@ -51,6 +51,15 @@ async def get_or_create_user(telegram_id: int) -> dict:
             return dict(row)
 
 
+async def get_all_users() -> list[dict]:
+    """Retrieve all users to process scheduled tasks like anomaly detection."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM users") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+
 async def update_month_start_day(telegram_id: int, day: int) -> None:
     """Update the financial month start day for a user."""
     async with aiosqlite.connect(DB_PATH) as db:

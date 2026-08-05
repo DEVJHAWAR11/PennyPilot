@@ -82,6 +82,15 @@ def main() -> None:
         await init_db()
         await setup_bot_commands(bot)
         logging.info("Database initialized and commands set.")
+        
+        # Start the background anomaly detection scheduler
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from bot.agent.anomaly import check_user_anomalies
+        scheduler = AsyncIOScheduler()
+        # Schedule it to run daily at 9:00 AM UTC
+        scheduler.add_job(check_user_anomalies, 'cron', hour=9, minute=0, args=[bot])
+        scheduler.start()
+        logging.info("APScheduler started (anomaly checks run at 09:00 UTC).")
 
     dp.startup.register(on_startup)
 
