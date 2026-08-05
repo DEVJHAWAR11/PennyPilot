@@ -84,7 +84,8 @@ async def log_txn(uid: int, amt: float, typ: str, cat: str, nt: str, dt: str) ->
     c = next((x for x in categories if x["name"].lower() == cat.lower()), None)
     
     if not c:
-        return f"Err: Cat not found."
+        valid_cats = ", ".join([x["name"] for x in categories])
+        return f"Err: Cat not found. Available: {valid_cats}"
 
     await add_transaction(uid, amt, typ, c["id"], nt, dt)
     return f"Logged"
@@ -110,7 +111,8 @@ async def upd_cat(uid: int, tid: int, ncat: str) -> str:
     c = next((x for x in categories if x["name"].lower() == ncat.lower()), None)
     
     if not c:
-        return f"Err: Cat not found."
+        valid_cats = ", ".join([x["name"] for x in categories])
+        return f"Err: Cat not found. Available: {valid_cats}"
 
     await update_transaction(tid, category_id=c["id"])
     return f"Updated"
