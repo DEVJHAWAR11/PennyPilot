@@ -20,9 +20,8 @@ async def init_agent():
     if _global_agent is not None:
         return _global_agent
 
-    PYTHON_EXE = os.path.join(os.getcwd(), "venv", "Scripts", "python.exe")
-    if not os.path.exists(PYTHON_EXE):
-        PYTHON_EXE = "python"
+    import sys
+    PYTHON_EXE = sys.executable
 
     server_params = StdioServerParameters(
         command=PYTHON_EXE,
