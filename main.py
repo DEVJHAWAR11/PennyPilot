@@ -29,6 +29,7 @@ from bot.handlers.recent import router as recent_router
 async def setup_bot_commands(bot: Bot):
     """Set up the Telegram bot menu commands."""
     commands = [
+        BotCommand(command="start", description="Start or restart the bot"),
         BotCommand(command="balance", description="View current month balance"),
         BotCommand(command="stats", description="View past months breakdown"),
         BotCommand(command="categories", description="Manage categories"),
