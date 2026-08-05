@@ -22,6 +22,7 @@ from bot.handlers.logging import router as logging_router
 from bot.handlers.voice import router as voice_router
 from bot.handlers.photo import router as photo_router
 from bot.handlers.stats import router as stats_router
+from bot.handlers.export import router as export_router
 
 
 async def setup_bot_commands(bot: Bot):
@@ -30,6 +31,7 @@ async def setup_bot_commands(bot: Bot):
         BotCommand(command="balance", description="View current month balance"),
         BotCommand(command="stats", description="View past months breakdown"),
         BotCommand(command="categories", description="Manage categories"),
+        BotCommand(command="export", description="Export to CSV or PDF"),
         BotCommand(command="settings", description="Change bot settings"),
         BotCommand(command="help", description="Show help menu")
     ]
@@ -64,6 +66,7 @@ def main() -> None:
     dp.include_router(voice_router)
     dp.include_router(photo_router)
     dp.include_router(stats_router)
+    dp.include_router(export_router)
     dp.include_router(logging_router)
 
     async def on_startup() -> None:
