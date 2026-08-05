@@ -18,9 +18,9 @@ router = Router()
 
 GROQ_TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 
-@router.message(F.voice)
+@router.message(F.voice | F.audio)
 async def handle_voice_message(message: Message, bot: Bot) -> None:
-    """Handle voice messages by transcribing and passing to the text parser."""
+    """Handle voice/audio messages by transcribing and passing to the text parser."""
     
     if not GROQ_API_KEY or GROQ_API_KEY == "your-groq-api-key-here":
         await message.reply(
@@ -34,8 +34,9 @@ async def handle_voice_message(message: Message, bot: Bot) -> None:
     status_msg = await message.reply("🎙️ Listening...")
 
     try:
-        # 1. Download the voice file to memory
-        file_info = await bot.get_file(message.voice.file_id)
+        # 1. Download the voice/audio file to memory
+        file_id = message.voice.file_id if message.voice else message.audio.file_id
+        file_info = await bot.get_file(file_id)
         voice_bytes = io.BytesIO()
         await bot.download_file(file_info.file_path, destination=voice_bytes)
         
