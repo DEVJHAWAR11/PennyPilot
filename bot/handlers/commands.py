@@ -38,8 +38,9 @@ async def cmd_help(message: Message) -> None:
         "or `2500 salary`.\n\n"
         "*Commands:*\n"
         "/start — Welcome message\n"
-        "/help — This help menu\n\n"
-        "🚧 More commands coming soon — categories, balance, stats, "
+        "/help — This help menu\n"
+        "/categories — Manage your categories and keywords\n\n"
+        "🚧 More commands coming soon — balance, stats, "
         "charts, exports, and more!",
         parse_mode="Markdown",
     )

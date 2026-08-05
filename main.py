@@ -14,6 +14,7 @@ from aiogram import Bot, Dispatcher
 from bot.config import BOT_TOKEN
 from bot.db.schema import init_db
 from bot.handlers.commands import router as commands_router
+from bot.handlers.categories import router as categories_router
 from bot.handlers.logging import router as logging_router
 
 
@@ -41,6 +42,7 @@ def main() -> None:
 
     # Register handler routers
     dp.include_router(commands_router)
+    dp.include_router(categories_router)
     dp.include_router(logging_router)
 
     # Initialize the database (creates tables if they don't exist)
