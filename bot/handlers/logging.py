@@ -29,19 +29,27 @@ pending_txns: Dict[int, ParsedMessage] = {}
 class CategorySelectCallback(CallbackData, prefix="cat_sel"):
     """Callback data for the unknown keyword category selection."""
     category_id: int
+    needs_confirmation: bool = False
+
+class ConfirmTxnCallback(CallbackData, prefix="txn_conf"):
+    """Callback data for confirming an AI-transcribed transaction."""
+    confirm: bool
 
 
 @router.message(F.text)
 async def handle_text_message(message: Message) -> None:
     """Handle any raw text message as a potential transaction log."""
+    await process_transaction_text(message, message.text, needs_confirmation=False)
+
+
+async def process_transaction_text(message: Message, text: str, needs_confirmation: bool = False) -> None:
+    """Core logic to parse and route a transaction text."""
     telegram_id = message.from_user.id
-    text = message.text
 
     # 1. Parse the message
     parsed = parse_message(text)
     if not parsed:
         # Ignore normal chat / commands that don't look like transactions.
-        # But if it's not a command (doesn't start with /), maybe give a helpful error.
         if not text.startswith("/"):
             await message.answer(
                 "I couldn't find an amount in that message. 🧐\n"
@@ -54,7 +62,7 @@ async def handle_text_message(message: Message) -> None:
     if not parsed.words:
         categories = await get_categories(telegram_id)
         fallback_cat = next((c for c in categories if c["name"] == "Other Expenses"), categories[0])
-        await _log_and_reply(message, telegram_id, parsed, fallback_cat["id"], fallback_cat["type"], fallback_cat["name"], fallback_cat["emoji"])
+        await _log_and_reply(message, telegram_id, parsed, fallback_cat["id"], fallback_cat["type"], fallback_cat["name"], fallback_cat["emoji"], needs_confirmation=needs_confirmation)
         return
 
     # 3. We have words, try to match a keyword
@@ -62,8 +70,8 @@ async def handle_text_message(message: Message) -> None:
     match = await get_keyword_match(telegram_id, keyword)
 
     if match:
-        # Known keyword -> log it immediately
-        await _log_and_reply(message, telegram_id, parsed, match["id"], match["type"], match["name"], match["emoji"], keyword=keyword)
+        # Known keyword -> log it immediately (or confirm)
+        await _log_and_reply(message, telegram_id, parsed, match["id"], match["type"], match["name"], match["emoji"], keyword=keyword, needs_confirmation=needs_confirmation)
     else:
         # Unknown keyword -> ask user
         pending_txns[telegram_id] = parsed
@@ -75,15 +83,18 @@ async def handle_text_message(message: Message) -> None:
             btn_text = f"{cat['emoji']} {cat['name']}".strip()
             builder.button(
                 text=btn_text, 
-                callback_data=CategorySelectCallback(category_id=cat["id"]).pack()
+                callback_data=CategorySelectCallback(category_id=cat["id"], needs_confirmation=needs_confirmation).pack()
             )
         
         # Adjust layout (2 buttons per row)
         builder.adjust(2)
         
+        # Mention the transcribed text if this came from voice/vision
+        transcribed_note = f"\n*(I heard/saw: \"{text}\")*" if needs_confirmation else ""
+        
         await message.answer(
             f"I don't recognize the word **\"{keyword}\"**. 🤔\n"
-            "Which category should I link this to? (I'll remember it for next time).",
+            f"Which category should I link this to?{transcribed_note}",
             reply_markup=builder.as_markup(),
             parse_mode="Markdown"
         )
@@ -117,8 +128,34 @@ async def handle_category_selection(query: CallbackQuery, callback_data: Categor
     # Remove the buttons from the original message and update text
     await query.message.edit_text(f"✅ Linked **\"{keyword}\"** to {cat['emoji']} {cat['name']}.", parse_mode="Markdown")
 
-    # Log the transaction
-    await _log_and_reply(query.message, telegram_id, parsed, category_id, cat["type"], cat["name"], cat["emoji"], keyword=keyword, is_callback=True)
+    # Log the transaction (or confirm)
+    await _log_and_reply(query.message, telegram_id, parsed, category_id, cat["type"], cat["name"], cat["emoji"], keyword=keyword, is_callback=True, needs_confirmation=callback_data.needs_confirmation)
+
+
+@router.callback_query(ConfirmTxnCallback.filter())
+async def handle_txn_confirmation(query: CallbackQuery, callback_data: ConfirmTxnCallback) -> None:
+    """Handle the user confirming or cancelling an AI-transcribed transaction."""
+    telegram_id = query.from_user.id
+    
+    if not callback_data.confirm:
+        pending_txns.pop(telegram_id, None)
+        await query.answer("Transaction cancelled.")
+        await query.message.edit_text("❌ Transaction cancelled.", parse_mode="Markdown")
+        return
+
+    # User confirmed
+    pending_data = pending_txns.pop(telegram_id, None)
+    if not pending_data:
+        await query.answer("Transaction expired.", show_alert=True)
+        await query.message.edit_reply_markup(reply_markup=None)
+        return
+        
+    # Unpack the pending data we stored for confirmation
+    parsed, category_id, cat_type, cat_name, cat_emoji, keyword = pending_data
+    
+    # Actually log it now
+    await _log_and_reply(query.message, telegram_id, parsed, category_id, cat_type, cat_name, cat_emoji, keyword=keyword, is_callback=True, needs_confirmation=False)
+    await query.answer("Transaction logged!")
 
 
 async def _log_and_reply(
@@ -130,7 +167,8 @@ async def _log_and_reply(
     category_name: str, 
     category_emoji: str, 
     keyword: str = "",
-    is_callback: bool = False
+    is_callback: bool = False,
+    needs_confirmation: bool = False
 ) -> None:
     """Helper to finalize the transaction logic and send a confirmation reply."""
     
@@ -142,7 +180,29 @@ async def _log_and_reply(
     else:
         txn_type = category_type
 
-    # Log it
+    action = "Earned" if txn_type == "income" else "Spent"
+    reply = f"✅ **{action}** `₹{parsed.amount:.2f}`\n"
+    reply += f"📂 {category_emoji} {category_name}\n"
+    reply += f"📅 {parsed.date}"
+
+    # If it needs confirmation (Voice/Vision), don't log yet. Ask first.
+    if needs_confirmation:
+        # Save to pending txns as a tuple
+        pending_txns[telegram_id] = (parsed, category_id, category_type, category_name, category_emoji, keyword)
+        
+        builder = InlineKeyboardBuilder()
+        builder.button(text="✅ Confirm", callback_data=ConfirmTxnCallback(confirm=True).pack())
+        builder.button(text="❌ Cancel", callback_data=ConfirmTxnCallback(confirm=False).pack())
+        builder.adjust(2)
+        
+        ask_text = f"🎙️ **I heard:**\n{reply}\n\nIs this correct?"
+        if is_callback:
+            await message.answer(ask_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        else:
+            await message.reply(ask_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        return
+
+    # Otherwise, log it immediately
     await add_transaction(
         telegram_id=telegram_id,
         amount=parsed.amount,
@@ -152,11 +212,8 @@ async def _log_and_reply(
         date=parsed.date
     )
 
-    # Format reply
-    action = "Earned" if txn_type == "income" else "Spent"
-    reply = f"✅ **{action}** `₹{parsed.amount:.2f}`\n"
-    reply += f"📂 {category_emoji} {category_name}\n"
-    reply += f"📅 {parsed.date}"
-
     # If it was a callback, we reply as a new message so it acts like a normal log confirmation
-    await message.answer(reply, parse_mode="Markdown")
+    if is_callback:
+        await message.answer(reply, parse_mode="Markdown")
+    else:
+        await message.reply(reply, parse_mode="Markdown")
