@@ -11,10 +11,7 @@ mcp = FastMCP("PennyPilot")
 
 @mcp.tool()
 async def query_transactions(user_id: int, start_date: str, end_date: str, category: str = None) -> list[dict]:
-    """
-    Return matching transactions for a user within a date range (YYYY-MM-DD).
-    Optionally filter by category name.
-    """
+    """Get txns in date range (YYYY-MM-DD). Optional category filter."""
     transactions = await get_transactions_for_period(user_id, start_date, end_date)
     if category:
         category = category.lower()
@@ -33,9 +30,7 @@ async def query_transactions(user_id: int, start_date: str, end_date: str, categ
 
 @mcp.tool()
 async def get_category_totals(user_id: int, start_date: str, end_date: str) -> dict[str, float]:
-    """
-    Return aggregated expense totals per category for a user within a date range (YYYY-MM-DD).
-    """
+    """Get expense totals per category (YYYY-MM-DD)."""
     transactions = await get_transactions_for_period(user_id, start_date, end_date)
     
     cat_totals = defaultdict(float)
@@ -48,9 +43,7 @@ async def get_category_totals(user_id: int, start_date: str, end_date: str) -> d
 
 @mcp.tool()
 async def get_balance(user_id: int, start_date: str, end_date: str) -> dict[str, float]:
-    """
-    Calculate the total income, total expenses, and net balance for a given date range (YYYY-MM-DD).
-    """
+    """Get total income, expenses, and net (YYYY-MM-DD)."""
     transactions = await get_transactions_for_period(user_id, start_date, end_date)
     
     income = sum(t["amount"] for t in transactions if t["type"] == "income")
@@ -65,10 +58,7 @@ async def get_balance(user_id: int, start_date: str, end_date: str) -> dict[str,
 
 @mcp.tool()
 async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
-    """
-    Generate a pie chart of expenses for a date range (YYYY-MM-DD) and return the absolute file path to the saved image.
-    The agent can then pass this filepath back to Telegram to send to the user.
-    """
+    """Generate pie chart for date range (YYYY-MM-DD), returns filepath."""
     transactions = await get_transactions_for_period(user_id, start_date, end_date)
     
     cat_totals = defaultdict(float)
@@ -91,19 +81,13 @@ async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
 
 @mcp.tool()
 async def log_transaction(user_id: int, amount: float, txn_type: str, category_name: str, note: str, date: str) -> str:
-    """
-    Log a new transaction for a user.
-    `txn_type` must be 'income' or 'expense'.
-    `date` must be YYYY-MM-DD.
-    `category_name` should be a known category like 'Food & Dining', 'Transport', 'Shopping', 'Other Expenses', etc.
-    Returns a success message with the transaction details.
-    """
+    """Log a txn. type: 'income'|'expense'. date: YYYY-MM-DD. category_name must be known."""
     categories = await get_categories(user_id)
     cat = next((c for c in categories if c["name"].lower() == category_name.lower()), None)
     
     if not cat:
         valid_cats = ", ".join([c["name"] for c in categories])
-        return f"Error: Category '{category_name}' not found. Please choose the most appropriate category from this list and try again: {valid_cats}"
+        return f"Error: Category '{category_name}' not found. Please choose from: {valid_cats}"
 
     await add_transaction(user_id, amount, txn_type, cat["id"], note, date)
     
@@ -111,10 +95,7 @@ async def log_transaction(user_id: int, amount: float, txn_type: str, category_n
 
 @mcp.tool()
 async def delete_transaction_tool(txn_id: int) -> str:
-    """
-    Delete a transaction by its ID. You must first know the transaction ID (e.g. by using query_transactions).
-    Returns a success message.
-    """
+    """Delete a txn by ID (find ID first via query_transactions)."""
     txn = await get_transaction_by_id(txn_id)
     if not txn:
         return f"Error: Transaction with ID {txn_id} not found."
@@ -124,11 +105,7 @@ async def delete_transaction_tool(txn_id: int) -> str:
 
 @mcp.tool()
 async def update_transaction_category_tool(user_id: int, txn_id: int, new_category_name: str) -> str:
-    """
-    Change the category of an existing transaction.
-    `new_category_name` should be a known category like 'Food & Dining', 'Salary', 'Transport', etc.
-    Returns a success message.
-    """
+    """Change the category of an existing txn by ID."""
     txn = await get_transaction_by_id(txn_id)
     if not txn:
         return f"Error: Transaction with ID {txn_id} not found."
