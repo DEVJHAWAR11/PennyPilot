@@ -24,6 +24,7 @@ from bot.handlers.photo import router as photo_router
 from bot.handlers.stats import router as stats_router
 from bot.handlers.export import router as export_router
 from bot.handlers.recent import router as recent_router
+from bot.handlers.ask import router as ask_router
 
 
 async def setup_bot_commands(bot: Bot):
@@ -35,6 +36,7 @@ async def setup_bot_commands(bot: Bot):
         BotCommand(command="categories", description="Manage categories"),
         BotCommand(command="export", description="Export to CSV or PDF"),
         BotCommand(command="recent", description="View recent transactions"),
+        BotCommand(command="ask", description="Ask the AI a financial question"),
         BotCommand(command="settings", description="Change bot settings"),
         BotCommand(command="reset", description="Wipe all data"),
         BotCommand(command="help", description="Show help menu")
@@ -72,6 +74,7 @@ def main() -> None:
     dp.include_router(stats_router)
     dp.include_router(export_router)
     dp.include_router(recent_router)
+    dp.include_router(ask_router)
     dp.include_router(logging_router)
 
     async def on_startup() -> None:

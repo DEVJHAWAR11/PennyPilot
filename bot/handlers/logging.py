@@ -49,13 +49,31 @@ async def process_transaction_text(message: Message, text: str, needs_confirmati
     # 1. Parse the message
     parsed = parse_message(text)
     if not parsed:
-        # Ignore normal chat / commands that don't look like transactions.
+        # Ignore commands
         if not text.startswith("/"):
-            await message.answer(
-                "I couldn't find an amount in that message. 🧐\n"
-                "Try starting with a number, like `45 groceries` or `2500 salary`.",
-                parse_mode="Markdown"
-            )
+            await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+            from bot.agent.graph import ask_agent
+            try:
+                reply = await ask_agent(telegram_id, text)
+                import re
+                if "[CHART_PATH:" in reply:
+                    match = re.search(r"\[CHART_PATH:(.*?)\]", reply)
+                    if match:
+                        chart_path = match.group(1)
+                        clean_reply = re.sub(r"\[CHART_PATH:.*?\]", "", reply).strip()
+                        from aiogram.types import FSInputFile
+                        photo = FSInputFile(chart_path)
+                        await message.answer_photo(photo=photo, caption=clean_reply)
+                    else:
+                        await message.answer(reply)
+                else:
+                    await message.answer(reply)
+            except Exception as e:
+                await message.answer(
+                    "I couldn't find an amount in that message to log a transaction, "
+                    "and my query agent encountered an error. 🧐\n"
+                    "Try starting with a number, like `45 groceries` or `2500 salary`."
+                )
         return
 
     # 2. If no words given (e.g. "82.55"), fallback to "Other Expenses"
