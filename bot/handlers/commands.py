@@ -6,12 +6,16 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from bot.db.crud import get_or_create_user
+
 router = Router()
 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message) -> None:
-    """Greet the user and explain what the bot does."""
+    """Greet the user and register them if they're new."""
+    # Register user in DB (seeds default categories on first /start)
+    await get_or_create_user(message.from_user.id)
     await message.answer(
         "Hey! 👋 I'm PennyPilot — your personal expense tracker.\n\n"
         "Send me an amount and what it was for, like:\n"
