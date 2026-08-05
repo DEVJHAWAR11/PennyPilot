@@ -50,6 +50,7 @@ async def init_agent():
         "3. You must ALWAYS use the provided `user_id` argument for all tool calls.\n"
         "4. If you generate a chart, the tool will return a filepath. Tell the user you've generated the chart and include the filepath strictly formatted as `[CHART_PATH:<filepath>]` in your final text. The system will handle parsing it.\n"
         "5. If the user says something like 'I spent 300 on food', use the `log_transaction` tool to record it, and confirm the logging in your final response.\n"
+        "6. ALWAYS format currency in ₹ (INR), never use $.\n"
     )
     
     _global_agent = create_react_agent(llm, tools=tools, prompt=system_prompt)
@@ -64,8 +65,11 @@ async def close_agent():
 async def ask_agent(user_id: int, question: str) -> str:
     agent = await init_agent()
     
-    # We inject the user_id into the prompt so the agent knows who to query for
-    prompt = f"The user (user_id={user_id}) asks: {question}"
+    from datetime import datetime
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # We inject the user_id and current date into the prompt
+    prompt = f"The user (user_id={user_id}) asks: {question}\n\n[System Context: Today's date is {today}]"
     
     response = await agent.ainvoke({"messages": [("user", prompt)]})
     return response["messages"][-1].content

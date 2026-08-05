@@ -102,9 +102,8 @@ async def log_transaction(user_id: int, amount: float, txn_type: str, category_n
     cat = next((c for c in categories if c["name"].lower() == category_name.lower()), None)
     
     if not cat:
-        # Fallback to Other Expenses or Other Income if not found
-        fallback_name = "Other Expenses" if txn_type == "expense" else "Other Income"
-        cat = next((c for c in categories if c["name"].lower() == fallback_name.lower()), categories[0])
+        valid_cats = ", ".join([c["name"] for c in categories])
+        return f"Error: Category '{category_name}' not found. Please choose the most appropriate category from this list and try again: {valid_cats}"
 
     await add_transaction(user_id, amount, txn_type, cat["id"], note, date)
     
