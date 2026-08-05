@@ -72,7 +72,22 @@ async def init_agent():
     
     def custom_modifier(state):
         trimmed = trimmer.invoke(state["messages"])
-        return [SystemMessage(content=system_prompt)] + trimmed
+        
+        # Aggressive sanitization: Remove any AIMessage with tool_calls that isn't followed by a ToolMessage
+        from langchain_core.messages import AIMessage, ToolMessage
+        sanitized = []
+        for i, msg in enumerate(trimmed):
+            if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+                # Look ahead to see if the immediate next message is a ToolMessage
+                if i + 1 < len(trimmed) and isinstance(trimmed[i+1], ToolMessage):
+                    sanitized.append(msg)
+                else:
+                    # Drop this broken AIMessage to prevent INVALID_CHAT_HISTORY crash
+                    pass
+            else:
+                sanitized.append(msg)
+                
+        return [SystemMessage(content=system_prompt)] + sanitized
         
     _global_agent = create_react_agent(llm, tools=tools, checkpointer=memory, prompt=custom_modifier)
     return _global_agent
