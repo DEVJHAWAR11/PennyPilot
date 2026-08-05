@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
@@ -84,5 +85,8 @@ async def check_user_anomalies(bot: Bot) -> None:
                     
         except Exception as e:
             logging.error(f"Error checking anomalies for user {telegram_id}: {e}")
+            
+        # Add a delay between users to avoid hammering the LLM API and hitting rate limits
+        await asyncio.sleep(10)
 
     logging.info("Scheduled anomaly checks completed.")

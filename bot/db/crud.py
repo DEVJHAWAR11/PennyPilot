@@ -4,372 +4,254 @@ Async CRUD functions for the database.
 One function per operation — no raw SQL in handlers.
 """
 
+import datetime
 from typing import Optional
-
-import aiosqlite
-
-from bot.db.schema import DB_PATH, seed_categories_for_user
-
+from bot.db.schema import get_pool, seed_categories_for_user
 
 # ──────────────────────────── Users ────────────────────────────
 
 async def get_or_create_user(telegram_id: int) -> dict:
-    """
-    Return the user row for this telegram_id.
-    If the user doesn't exist yet, create them and seed default categories.
-    Returns a dict with keys: id, telegram_id, month_start_day, created_at.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-
-        # Check if user already exists
-        async with db.execute(
-            "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
         if row:
             return dict(row)
-
-        # Create new user
-        cursor = await db.execute(
-            "INSERT INTO users (telegram_id) VALUES (?)", (telegram_id,)
+        
+        user_db_id = await conn.fetchval(
+            "INSERT INTO users (telegram_id) VALUES ($1) RETURNING id", telegram_id
         )
-        user_db_id = cursor.lastrowid
-        await db.commit()
-
-    # Seed default categories (uses its own connection)
     await seed_categories_for_user(user_db_id)
-
-    # Fetch and return the newly created user
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM users WHERE id = ?", (user_db_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row)
-
+    async with p.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_db_id)
+        return dict(row)
 
 async def get_all_users() -> list[dict]:
-    """Retrieve all users to process scheduled tasks like anomaly detection."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users") as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM users")
+        return [dict(r) for r in rows]
 
 async def update_month_start_day(telegram_id: int, day: int) -> None:
-    """Update the financial month start day for a user."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE users SET month_start_day = ? WHERE telegram_id = ?",
-            (day, telegram_id),
-        )
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute("UPDATE users SET month_start_day = $1 WHERE telegram_id = $2", day, telegram_id)
 
 # ──────────────────────────── Categories ────────────────────────────
 
 async def get_categories(telegram_id: int) -> list[dict]:
-    """Return all categories for a user, ordered by type then name."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
+    p = await get_pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT c.* FROM categories c
             JOIN users u ON c.user_id = u.id
-            WHERE u.telegram_id = ?
+            WHERE u.telegram_id = $1
             ORDER BY c.type, c.name
-            """,
-            (telegram_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
-
+            """, telegram_id
+        )
+        return [dict(r) for r in rows]
 
 async def add_category(telegram_id: int, name: str, cat_type: str, emoji: str = "") -> int:
-    """Add a new category for a user. Returns the new category id."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        # Get user db id
-        async with db.execute(
-            "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            user_row = await cursor.fetchone()
-
-        cursor = await db.execute(
-            "INSERT INTO categories (user_id, name, type, emoji) VALUES (?, ?, ?, ?)",
-            (user_row["id"], name, cat_type, emoji),
+    p = await get_pool()
+    async with p.acquire() as conn:
+        user_id = await conn.fetchval("SELECT id FROM users WHERE telegram_id = $1", telegram_id)
+        cat_id = await conn.fetchval(
+            "INSERT INTO categories (user_id, name, type, emoji) VALUES ($1, $2, $3, $4) RETURNING id",
+            user_id, name, cat_type, emoji
         )
-        cat_id = cursor.lastrowid
-        await db.commit()
         return cat_id
 
-
 async def rename_category(category_id: int, new_name: str) -> None:
-    """Rename an existing category."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE categories SET name = ? WHERE id = ?",
-            (new_name, category_id),
-        )
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute("UPDATE categories SET name = $1 WHERE id = $2", new_name, category_id)
 
 async def delete_category(category_id: int) -> None:
-    """Delete a category and its linked keywords."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM keywords WHERE category_id = ?", (category_id,))
-        await db.execute("DELETE FROM categories WHERE id = ?", (category_id,))
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute("DELETE FROM keywords WHERE category_id = $1", category_id)
+        await conn.execute("DELETE FROM categories WHERE id = $1", category_id)
 
 async def get_category_by_id(category_id: int) -> Optional[dict]:
-    """Return a single category by its id, or None."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM categories WHERE id = ?", (category_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM categories WHERE id = $1", category_id)
+        return dict(row) if row else None
 
 # ──────────────────────────── Keywords ────────────────────────────
 
 async def get_keyword_match(telegram_id: int, keyword: str) -> Optional[dict]:
-    """
-    Look up a keyword for this user. Returns the category dict if found, None otherwise.
-    First checks if the word matches a category name exactly, then checks the keywords table.
-    Matching is case-insensitive.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        
-        # 1. Try matching the exact category name
-        async with db.execute(
+    p = await get_pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT c.* FROM categories c
             JOIN users u ON c.user_id = u.id
-            WHERE u.telegram_id = ? AND LOWER(c.name) = LOWER(?)
-            """,
-            (telegram_id, keyword),
-        ) as cursor:
-            row = await cursor.fetchone()
-            if row:
-                return dict(row)
-                
-        # 2. Try matching a mapped keyword
-        async with db.execute(
+            WHERE u.telegram_id = $1 AND LOWER(c.name) = LOWER($2)
+            """, telegram_id, keyword
+        )
+        if row:
+            return dict(row)
+            
+        row = await conn.fetchrow(
             """
             SELECT c.* FROM keywords k
             JOIN categories c ON k.category_id = c.id
             JOIN users u ON k.user_id = u.id
-            WHERE u.telegram_id = ? AND LOWER(k.keyword) = LOWER(?)
-            """,
-            (telegram_id, keyword),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
-
+            WHERE u.telegram_id = $1 AND LOWER(k.keyword) = LOWER($2)
+            """, telegram_id, keyword
+        )
+        return dict(row) if row else None
 
 async def add_keyword(telegram_id: int, keyword: str, category_id: int) -> None:
-    """Link a keyword to a category for this user."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            user_row = await cursor.fetchone()
-
-        await db.execute(
-            "INSERT INTO keywords (user_id, keyword, category_id) VALUES (?, ?, ?)",
-            (user_row["id"], keyword.lower(), category_id),
+    p = await get_pool()
+    async with p.acquire() as conn:
+        user_id = await conn.fetchval("SELECT id FROM users WHERE telegram_id = $1", telegram_id)
+        await conn.execute(
+            "INSERT INTO keywords (user_id, keyword, category_id) VALUES ($1, $2, $3)",
+            user_id, keyword.lower(), category_id
         )
-        await db.commit()
-
 
 async def delete_keyword(keyword_id: int) -> None:
-    """Delete a keyword by its id."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM keywords WHERE id = ?", (keyword_id,))
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute("DELETE FROM keywords WHERE id = $1", keyword_id)
 
 async def get_keywords_for_category(category_id: int) -> list[dict]:
-    """Return all keywords linked to a category."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM keywords WHERE category_id = ?", (category_id,)
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM keywords WHERE category_id = $1", category_id)
+        return [dict(r) for r in rows]
 
 # ──────────────────────────── Transactions ────────────────────────────
 
-async def add_transaction(
-    telegram_id: int,
-    amount: float,
-    txn_type: str,
-    category_id: int,
-    note: str,
-    date: str,
-) -> int:
-    """
-    Insert a new transaction. Returns the new transaction id.
-    txn_type must be 'income' or 'expense'.
-    date should be in 'YYYY-MM-DD' format.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            user_row = await cursor.fetchone()
-
-        cursor = await db.execute(
+async def add_transaction(telegram_id: int, amount: float, txn_type: str, category_id: int, note: str, date: str) -> int:
+    p = await get_pool()
+    async with p.acquire() as conn:
+        user_id = await conn.fetchval("SELECT id FROM users WHERE telegram_id = $1", telegram_id)
+        
+        parsed_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        
+        txn_id = await conn.fetchval(
             """
             INSERT INTO transactions (user_id, amount, type, category_id, note, date)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
             """,
-            (user_row["id"], amount, txn_type, category_id, note, date),
+            user_id, amount, txn_type, category_id, note, parsed_date
         )
-        txn_id = cursor.lastrowid
-        await db.commit()
         return txn_id
 
-
-async def get_transactions_for_period(
-    telegram_id: int, start_date: str, end_date: str
-) -> list[dict]:
-    """
-    Return all transactions for a user within a date range (inclusive).
-    Dates should be in 'YYYY-MM-DD' format.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
+async def get_transactions_for_period(telegram_id: int, start_date: str, end_date: str) -> list[dict]:
+    p = await get_pool()
+    async with p.acquire() as conn:
+        start_d = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+        end_d = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+        rows = await conn.fetch(
             """
             SELECT t.*, c.name AS category_name, c.emoji AS category_emoji,
                    c.type AS category_type
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             JOIN users u ON t.user_id = u.id
-            WHERE u.telegram_id = ? AND t.date >= ? AND t.date <= ?
+            WHERE u.telegram_id = $1 AND t.date >= $2 AND t.date <= $3
             ORDER BY t.date DESC, t.created_at DESC
-            """,
-            (telegram_id, start_date, end_date),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
-
+            """, telegram_id, start_d, end_d
+        )
+        
+        def format_row(r):
+            d = dict(r)
+            d['date'] = str(d['date'])
+            d['created_at'] = str(d['created_at'])
+            return d
+            
+        return [format_row(r) for r in rows]
 
 async def get_recent_transactions(telegram_id: int, limit: int = 10) -> list[dict]:
-    """Return the most recent transactions for a user."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
+    p = await get_pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
             """
             SELECT t.*, c.name AS category_name, c.emoji AS category_emoji,
                    c.type AS category_type
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             JOIN users u ON t.user_id = u.id
-            WHERE u.telegram_id = ?
+            WHERE u.telegram_id = $1
             ORDER BY t.date DESC, t.created_at DESC
-            LIMIT ?
-            """,
-            (telegram_id, limit),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
-
+            LIMIT $2
+            """, telegram_id, limit
+        )
+        def format_row(r):
+            d = dict(r)
+            d['date'] = str(d['date'])
+            d['created_at'] = str(d['created_at'])
+            return d
+        return [format_row(r) for r in rows]
 
 async def delete_transaction(txn_id: int) -> None:
-    """Delete a transaction by its id."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM transactions WHERE id = ?", (txn_id,))
-        await db.commit()
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute("DELETE FROM transactions WHERE id = $1", txn_id)
 
-
-async def update_transaction(
-    txn_id: int,
-    amount: Optional[float] = None,
-    category_id: Optional[int] = None,
-    note: Optional[str] = None,
-    date: Optional[str] = None,
-) -> None:
-    """Update fields of an existing transaction. Only non-None fields are updated."""
+async def update_transaction(txn_id: int, amount: Optional[float] = None, category_id: Optional[int] = None, note: Optional[str] = None, date: Optional[str] = None) -> None:
     updates = []
     params = []
+    i = 1
     if amount is not None:
-        updates.append("amount = ?")
+        updates.append(f"amount = ${i}")
         params.append(amount)
+        i += 1
     if category_id is not None:
-        updates.append("category_id = ?")
+        updates.append(f"category_id = ${i}")
         params.append(category_id)
+        i += 1
     if note is not None:
-        updates.append("note = ?")
+        updates.append(f"note = ${i}")
         params.append(note)
+        i += 1
     if date is not None:
-        updates.append("date = ?")
-        params.append(date)
+        updates.append(f"date = ${i}")
+        params.append(datetime.datetime.strptime(date, "%Y-%m-%d").date())
+        i += 1
 
     if not updates:
         return
 
     params.append(txn_id)
-    sql = f"UPDATE transactions SET {', '.join(updates)} WHERE id = ?"
+    sql = f"UPDATE transactions SET {', '.join(updates)} WHERE id = ${i}"
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(sql, tuple(params))
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute(sql, *params)
 
 async def get_transaction_by_id(txn_id: int) -> Optional[dict]:
-    """Return a single transaction by its id, or None."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
+    p = await get_pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
             """
             SELECT t.*, c.name AS category_name, c.emoji AS category_emoji,
                    c.type AS category_type
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
-            WHERE t.id = ?
-            """,
-            (txn_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
-
+            WHERE t.id = $1
+            """, txn_id
+        )
+        if not row:
+            return None
+        d = dict(row)
+        d['date'] = str(d['date'])
+        d['created_at'] = str(d['created_at'])
+        return d
 
 async def reset_user_data(telegram_id: int) -> None:
-    """Wipes all records and categories for a user, then seeds the default categories."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            user_row = await cursor.fetchone()
-            
-        if not user_row:
+    p = await get_pool()
+    async with p.acquire() as conn:
+        user_id = await conn.fetchval("SELECT id FROM users WHERE telegram_id = $1", telegram_id)
+        if not user_id:
             return
-            
-        user_id = user_row["id"]
         
-        # Delete transactions
-        await db.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
-        # Delete keywords
-        await db.execute("DELETE FROM keywords WHERE user_id = ?", (user_id,))
-        # Delete categories
-        await db.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
-        await db.commit()
+        await conn.execute("DELETE FROM transactions WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM keywords WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM categories WHERE user_id = $1", user_id)
         
-    # Re-seed default categories
-    from bot.db.schema import seed_categories_for_user
     await seed_categories_for_user(user_id)

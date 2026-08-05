@@ -1,10 +1,15 @@
 """
-Database schema and initialization.
+Database schema and initialization for PostgreSQL via asyncpg.
 
 Creates tables and seeds default categories for new users.
 """
 
-import aiosqlite
+import os
+import asyncpg
+from typing import Optional
+
+# Global connection pool
+pool: Optional[asyncpg.Pool] = None
 
 # Default categories seeded for every new user on first /start
 DEFAULT_CATEGORIES = [
@@ -23,14 +28,14 @@ DEFAULT_CATEGORIES = [
 
 CREATE_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS users (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id     INTEGER UNIQUE NOT NULL,
+    id              SERIAL PRIMARY KEY,
+    telegram_id     BIGINT UNIQUE NOT NULL,
     month_start_day INTEGER NOT NULL DEFAULT 1,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS categories (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     user_id     INTEGER NOT NULL,
     name        TEXT    NOT NULL,
     type        TEXT    NOT NULL CHECK (type IN ('income', 'expense')),
@@ -39,7 +44,7 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 CREATE TABLE IF NOT EXISTS keywords (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     user_id     INTEGER NOT NULL,
     keyword     TEXT    NOT NULL,
     category_id INTEGER NOT NULL,
@@ -48,36 +53,41 @@ CREATE TABLE IF NOT EXISTS keywords (
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          SERIAL PRIMARY KEY,
     user_id     INTEGER NOT NULL,
     amount      REAL    NOT NULL,
     type        TEXT    NOT NULL CHECK (type IN ('income', 'expense')),
     category_id INTEGER NOT NULL,
     note        TEXT    DEFAULT '',
-    date        TEXT    NOT NULL,
-    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    date        DATE    NOT NULL,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id)     REFERENCES users(id)      ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 """
 
-# Path to the SQLite database file
-DB_PATH = "data/expenses.db"
-
+async def get_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL not set in environment")
+        pool = await asyncpg.create_pool(db_url)
+    return pool
 
 async def init_db() -> None:
     """Create all tables if they don't exist yet."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.executescript(CREATE_TABLES_SQL)
-        await db.commit()
-
+    p = await get_pool()
+    async with p.acquire() as conn:
+        await conn.execute(CREATE_TABLES_SQL)
 
 async def seed_categories_for_user(user_db_id: int) -> None:
     """Insert the default categories for a newly registered user."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        for name, cat_type, emoji in DEFAULT_CATEGORIES:
-            await db.execute(
-                "INSERT INTO categories (user_id, name, type, emoji) VALUES (?, ?, ?, ?)",
-                (user_db_id, name, cat_type, emoji),
-            )
-        await db.commit()
+    p = await get_pool()
+    async with p.acquire() as conn:
+        # Use executemany for bulk insert
+        values = [(user_db_id, name, cat_type, emoji) for name, cat_type, emoji in DEFAULT_CATEGORIES]
+        await conn.executemany(
+            "INSERT INTO categories (user_id, name, type, emoji) VALUES ($1, $2, $3, $4)",
+            values
+        )

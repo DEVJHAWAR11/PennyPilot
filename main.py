@@ -2,17 +2,20 @@
 PennyPilot — Telegram Expense Tracker Bot
 
 Entry point. Creates the Bot and Dispatcher, registers handler routers,
-and starts polling for updates from Telegram.
+and starts a webhook server or polling depending on the environment.
 """
 
 import asyncio
 import logging
 import sys
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 from bot.config import BOT_TOKEN
 from bot.db.schema import init_db
@@ -44,8 +47,13 @@ async def setup_bot_commands(bot: Bot):
     await bot.set_my_commands(commands)
 
 
+async def health_check(request: web.Request) -> web.Response:
+    """A simple endpoint to keep the bot alive on free tiers."""
+    return web.Response(text="PennyPilot is awake and healthy!", status=200)
+
+
 def main() -> None:
-    """Set up logging, build the bot, register routers, and start polling."""
+    """Set up logging, build the bot, register routers, and start the server."""
 
     # Configure logging so we can see what's happening in the console
     logging.basicConfig(
@@ -77,7 +85,7 @@ def main() -> None:
     dp.include_router(ask_router)
     dp.include_router(logging_router)
 
-    async def on_startup() -> None:
+    async def on_startup(bot: Bot) -> None:
         logging.info("PennyPilot is starting...")
         await init_db()
         await setup_bot_commands(bot)
@@ -86,17 +94,54 @@ def main() -> None:
         # Start the background anomaly detection scheduler
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         from bot.agent.anomaly import check_user_anomalies
+        from bot.agent.summary import send_monthly_summaries
+        
         scheduler = AsyncIOScheduler()
-        # Schedule it to run daily at 9:00 AM UTC
         scheduler.add_job(check_user_anomalies, 'cron', hour=9, minute=0, args=[bot])
+        scheduler.add_job(send_monthly_summaries, 'cron', hour=10, minute=0, args=[bot])
         scheduler.start()
-        logging.info("APScheduler started (anomaly checks run at 09:00 UTC).")
+        logging.info("APScheduler started (anomaly checks @ 09:00, summaries @ 10:00 UTC).")
+
+        webhook_url = os.environ.get("WEBHOOK_URL")
+        if webhook_url:
+            await bot.set_webhook(webhook_url)
+            logging.info(f"Webhook set to {webhook_url}")
+
+    async def on_shutdown(bot: Bot) -> None:
+        logging.info("PennyPilot is shutting down...")
+        await bot.delete_webhook()
 
     dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
 
-    # Start polling (blocks until stopped with Ctrl+C)
-    logging.info("PennyPilot is starting polling...")
-    asyncio.run(dp.start_polling(bot))
+    # Check if we should use webhooks or polling
+    webhook_url = os.environ.get("WEBHOOK_URL")
+    
+    if webhook_url:
+        logging.info("WEBHOOK_URL detected. Starting Webhook Server...")
+        app = web.Application()
+        
+        # Add a health check endpoint for keeping free servers alive
+        app.router.add_get("/health", health_check)
+        
+        # Add Telegram webhook endpoint
+        webhook_requests_handler = SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot,
+        )
+        # Register webhook handler on application
+        webhook_requests_handler.register(app, path="/webhook")
+
+        # Mount dispatcher startup and shutdown hooks to aiohttp app
+        setup_application(app, dp, bot=bot)
+        
+        # Run aiohttp server
+        port = int(os.environ.get("PORT", 8080))
+        web.run_app(app, host="0.0.0.0", port=port)
+    else:
+        # Start polling (blocks until stopped with Ctrl+C)
+        logging.info("No WEBHOOK_URL found. Starting local polling...")
+        asyncio.run(dp.start_polling(bot))
 
 
 if __name__ == "__main__":

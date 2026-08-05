@@ -17,7 +17,7 @@ A lightweight, agentic Telegram bot for tracking expenses and income seamlessly.
 
 - **Python 3.11+**
 - **aiogram (v3)** — Modern async Telegram bot framework
-- **aiosqlite** — Async SQLite for fast, local storage
+- **asyncpg** — High-performance async PostgreSQL driver
 - **matplotlib** — For generating in-memory pie charts
 - **reportlab** — For generating PDF financial statements
 - **Groq API** — For fast, free-tier voice transcription and vision extraction
@@ -44,6 +44,8 @@ A lightweight, agentic Telegram bot for tracking expenses and income seamlessly.
    - Copy `.env.example` to `.env`
    - Get a bot token from [@BotFather](https://t.me/BotFather) on Telegram and set `BOT_TOKEN`.
    - Get an API key from [Groq Console](https://console.groq.com) and set `GROQ_API_KEY`.
+   - Setup a PostgreSQL database (e.g., Supabase) and set `DATABASE_URL`.
+   - (Optional) Set `WEBHOOK_URL` to deploy with `aiohttp` webhooks on cloud platforms.
 
 4. Run the Bot:
    ```bash
@@ -65,4 +67,4 @@ Start a chat with your bot on Telegram and send `/start`.
 
 ## Project Status
 
-🚧 Under active development — Stage 0 (Project Bootstrap) complete.
+✅ Fully complete. Ready for production deployment on Render.

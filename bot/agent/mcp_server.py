@@ -11,28 +11,25 @@ from bot.services.charts import generate_pie_chart
 mcp = FastMCP("PennyPilot")
 
 @mcp.tool()
-async def query_transactions(user_id: int, start_date: str, end_date: str, category: Optional[str] = None) -> list[dict]:
-    """Get txns in date range (YYYY-MM-DD). Optional category filter."""
-    transactions = await get_transactions_for_period(user_id, start_date, end_date)
-    if category:
-        category = category.lower()
-        transactions = [t for t in transactions if t["category_name"].lower() == category]
+async def get_txns(uid: int, sdt: str, edt: str, cat: Optional[str] = None) -> str:
+    """Get txns in date range (YYYY-MM-DD). Optional category."""
+    transactions = await get_transactions_for_period(uid, sdt, edt)
+    if cat:
+        cat = cat.lower()
+        transactions = [t for t in transactions if t["category_name"].lower() == cat]
     
-    return [
-        {
-            "id": t["id"],
-            "amount": t["amount"],
-            "type": t["type"],
-            "category": t["category_name"],
-            "note": t["note"],
-            "date": t["date"]
-        } for t in transactions
-    ]
+    if not transactions:
+        return "None"
+        
+    res = "id,amt,typ,cat,note,date\n"
+    for t in transactions:
+        res += f"{t['id']},{t['amount']},{t['type'][0]},{t['category_name']},{t['note']},{t['date']}\n"
+    return res
 
 @mcp.tool()
-async def get_category_totals(user_id: int, start_date: str, end_date: str) -> dict[str, float]:
+async def get_cat_totals(uid: int, sdt: str, edt: str) -> dict[str, float]:
     """Get expense totals per category (YYYY-MM-DD)."""
-    transactions = await get_transactions_for_period(user_id, start_date, end_date)
+    transactions = await get_transactions_for_period(uid, sdt, edt)
     
     cat_totals = defaultdict(float)
     for t in transactions:
@@ -43,24 +40,24 @@ async def get_category_totals(user_id: int, start_date: str, end_date: str) -> d
     return dict(cat_totals)
 
 @mcp.tool()
-async def get_balance(user_id: int, start_date: str, end_date: str) -> dict[str, float]:
-    """Get total income, expenses, and net (YYYY-MM-DD)."""
-    transactions = await get_transactions_for_period(user_id, start_date, end_date)
+async def get_bal(uid: int, sdt: str, edt: str) -> dict[str, float]:
+    """Get total income, expenses, net (YYYY-MM-DD)."""
+    transactions = await get_transactions_for_period(uid, sdt, edt)
     
     income = sum(t["amount"] for t in transactions if t["type"] == "income")
     expenses = sum(t["amount"] for t in transactions if t["type"] == "expense")
     net = income - expenses
     
     return {
-        "income": income,
-        "expenses": expenses,
-        "net_balance": net
+        "inc": income,
+        "exp": expenses,
+        "net": net
     }
 
 @mcp.tool()
-async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
-    """Generate pie chart for date range (YYYY-MM-DD), returns filepath."""
-    transactions = await get_transactions_for_period(user_id, start_date, end_date)
+async def chart(uid: int, sdt: str, edt: str) -> str:
+    """Pie chart for date range (YYYY-MM-DD), returns filepath."""
+    transactions = await get_transactions_for_period(uid, sdt, edt)
     
     cat_totals = defaultdict(float)
     for t in transactions:
@@ -68,12 +65,12 @@ async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
             cat_totals[t["category_name"]] += t["amount"]
             
     if not cat_totals:
-        return "No expenses found for this period to chart."
+        return "No expenses"
         
     chart_bytes = generate_pie_chart(cat_totals)
     
     temp_dir = tempfile.gettempdir()
-    filepath = os.path.join(temp_dir, f"chart_{user_id}_{start_date}_{end_date}.png")
+    filepath = os.path.join(temp_dir, f"chart_{uid}_{sdt}_{edt}.png")
     
     with open(filepath, "wb") as f:
         f.write(chart_bytes)
@@ -81,45 +78,42 @@ async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
     return filepath
 
 @mcp.tool()
-async def log_transaction(user_id: int, amount: float, txn_type: str, category_name: str, note: str, date: str) -> str:
-    """Log a txn. type: 'income'|'expense'. date: YYYY-MM-DD. category_name must be known."""
-    categories = await get_categories(user_id)
-    cat = next((c for c in categories if c["name"].lower() == category_name.lower()), None)
+async def log_txn(uid: int, amt: float, typ: str, cat: str, nt: str, dt: str) -> str:
+    """Log txn. typ: 'income'|'expense'. dt: YYYY-MM-DD."""
+    categories = await get_categories(uid)
+    c = next((x for x in categories if x["name"].lower() == cat.lower()), None)
     
-    if not cat:
-        valid_cats = ", ".join([c["name"] for c in categories])
-        return f"Error: Category '{category_name}' not found. Please choose from: {valid_cats}"
+    if not c:
+        return f"Err: Cat not found."
 
-    await add_transaction(user_id, amount, txn_type, cat["id"], note, date)
-    
-    return f"Successfully logged {txn_type} of {amount} in {cat['name']} on {date}. Note: {note}"
+    await add_transaction(uid, amt, typ, c["id"], nt, dt)
+    return f"Logged"
 
 @mcp.tool()
-async def delete_transaction_tool(txn_id: int) -> str:
-    """Delete a txn by ID (find ID first via query_transactions)."""
-    txn = await get_transaction_by_id(txn_id)
+async def del_txn(tid: int) -> str:
+    """Delete txn by ID."""
+    txn = await get_transaction_by_id(tid)
     if not txn:
-        return f"Error: Transaction with ID {txn_id} not found."
+        return f"Err: ID {tid} not found."
         
-    await delete_transaction(txn_id)
-    return f"Successfully deleted transaction ID {txn_id}."
+    await delete_transaction(tid)
+    return f"Deleted"
 
 @mcp.tool()
-async def update_transaction_category_tool(user_id: int, txn_id: int, new_category_name: str) -> str:
-    """Change the category of an existing txn by ID."""
-    txn = await get_transaction_by_id(txn_id)
+async def upd_cat(uid: int, tid: int, ncat: str) -> str:
+    """Change category of txn by ID."""
+    txn = await get_transaction_by_id(tid)
     if not txn:
-        return f"Error: Transaction with ID {txn_id} not found."
+        return f"Err: ID {tid} not found."
 
-    categories = await get_categories(user_id)
-    cat = next((c for c in categories if c["name"].lower() == new_category_name.lower()), None)
+    categories = await get_categories(uid)
+    c = next((x for x in categories if x["name"].lower() == ncat.lower()), None)
     
-    if not cat:
-        valid_cats = ", ".join([c["name"] for c in categories])
-        return f"Error: Category '{new_category_name}' not found. Please choose from: {valid_cats}"
+    if not c:
+        return f"Err: Cat not found."
 
-    await update_transaction(txn_id, category_id=cat["id"])
-    return f"Successfully updated transaction ID {txn_id} to category '{cat['name']}'."
+    await update_transaction(tid, category_id=c["id"])
+    return f"Updated"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

@@ -41,26 +41,41 @@ async def init_agent():
     # We use llama-3.3-70b-versatile for tool calling
     llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
     
+    # Compress system prompt to extreme brevity
     system_prompt = (
-        "You're PennyPilot, a financial assistant.\n"
-        "Use MCP tools to query, chart, log, or edit transactions.\n"
+        "PennyPilot finance AI. Use MCP tools.\n"
         "RULES:\n"
-        "1. Never guess numbers. Use exact tool outputs.\n"
-        "2. If unknown, say so.\n"
-        "3. ALWAYS pass `user_id` to tools.\n"
-        "4. If charting, return exactly `[CHART_PATH:<filepath>]` in final text.\n"
-        "5. If user logs expense, use `log_transaction` and confirm.\n"
-        "6. Use ₹ (INR), never $.\n"
-        "7. Confirm logs concisely: '✅ Logged: ₹400 - Swiggy (Food)'\n"
-        "8. List concisely: '₹45.0 - Zomato (Food)'.\n"
-        "9. Dates: '5th Aug 2026'.\n"
-        "10. Use `delete_transaction_tool`/`update_transaction_category_tool` for edits.\n"
-        "11. Keep responses concise and brief.\n"
+        "1.No guessing nums. Use tool output.\n"
+        "2.Pass `uid`.\n"
+        "3.Chart: return `[CHART_PATH:<filepath>]`.\n"
+        "4.Use `log_txn` for expenses.\n"
+        "5.Use ₹, not $.\n"
+        "6.Confirm: '✅ ₹400-Swiggy(Food)'.\n"
+        "7.List: '₹45-Zomato(Food)'.\n"
+        "8.Edits: use del_txn/upd_cat.\n"
+        "9.EXTREME BREVITY."
     )
     
     from langgraph.checkpoint.memory import MemorySaver
+    from langchain_core.messages import trim_messages, SystemMessage
+    
     memory = MemorySaver()
-    _global_agent = create_react_agent(llm, tools=tools, prompt=system_prompt, checkpointer=memory)
+    
+    # Trim to the last 20 messages to ensure tool call history and the initial prompt are preserved
+    trimmer = trim_messages(
+        max_tokens=20,
+        strategy="last",
+        token_counter=len,
+        include_system=True,
+        allow_partial=False,
+        start_on="human"
+    )
+    
+    def custom_modifier(state):
+        trimmed = trimmer.invoke(state["messages"])
+        return [SystemMessage(content=system_prompt)] + trimmed
+        
+    _global_agent = create_react_agent(llm, tools=tools, checkpointer=memory, prompt=custom_modifier)
     return _global_agent
 
 async def close_agent():
