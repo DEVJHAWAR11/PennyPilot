@@ -8,7 +8,12 @@ import aiosqlite
 
 # Default categories seeded for every new user on first /start
 DEFAULT_CATEGORIES = [
+    ("Food & Dining", "expense", "🍔"),
     ("Groceries", "expense", "🛒"),
+    ("Travel", "expense", "🚕"),
+    ("Entertainment", "expense", "🎬"),
+    ("Subscriptions", "expense", "🔁"),
+    ("EMI", "expense", "🏦"),
     ("Bills & Subs", "expense", "🧾"),
     ("Transport", "expense", "🚌"),
     ("Salary", "income", "💰"),

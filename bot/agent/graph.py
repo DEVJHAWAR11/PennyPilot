@@ -51,6 +51,7 @@ async def init_agent():
         "4. If you generate a chart, the tool will return a filepath. Tell the user you've generated the chart and include the filepath strictly formatted as `[CHART_PATH:<filepath>]` in your final text. The system will handle parsing it.\n"
         "5. If the user says something like 'I spent 300 on food', use the `log_transaction` tool to record it, and confirm the logging in your final response.\n"
         "6. ALWAYS format currency in ₹ (INR), never use $.\n"
+        "7. When confirming a logged transaction, explicitly state the amount, the item, and the exact category it was logged under. Example: 'Your expense of ₹400 on Swiggy has been successfully logged under the Food & Dining category.'\n"
     )
     
     _global_agent = create_react_agent(llm, tools=tools, prompt=system_prompt)
