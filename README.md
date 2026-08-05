@@ -1,5 +1,7 @@
 # PennyPilot: Advanced Agentic Finance Bot
 
+🤖 **Try the live bot here: [@PennyPilot_bot](https://t.me/PennyPilot_bot)**
+
 ## Problem Statement
 Personal finance apps are inherently frictionless to install but incredibly high-friction to maintain. Users forget to log expenses, find it tedious to manually enter data, and struggle to query their own spending habits. PennyPilot solves this by bringing expense tracking directly into the platform where users already spend their time: Telegram. By combining deterministic parsing for quick logs and advanced LLM agentic flows for voice inputs, natural language queries, and anomaly detection, it provides a frictionless, autonomous financial assistant.
 
