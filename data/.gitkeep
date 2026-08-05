@@ -1,0 +1,2 @@
+# This directory holds the SQLite database file (expenses.db).
+# The .db file is gitignored — it's created at runtime.
