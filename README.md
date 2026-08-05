@@ -1,25 +1,67 @@
-# PennyPilot — Telegram Expense Tracker Bot
+# PennyPilot 🚁
 
-A Telegram bot that lets you log income and expenses by sending a plain message, voice note, or receipt photo. Get back balances, category stats, charts, and exports — all running on free-tier infrastructure.
+A lightweight, agentic Telegram bot for tracking expenses and income seamlessly. Built with Python and `aiogram`, it allows you to log transactions via text, voice, or photo receipts.
+
+## Features
+
+- **Text Logging:** Send messages like `45 groceries` or `2500 salary`.
+- **Voice Logging:** Send a voice note (powered by Groq Whisper).
+- **Receipt Parsing:** Send a photo of a receipt to extract the total amount (powered by Groq Vision).
+- **Categories:** Add, rename, and delete custom categories, and map keywords to them.
+- **Charts & Stats:** View monthly breakdowns, pie charts, and net balance.
+- **Exports:** Download your financial history as a CSV or a monthly PDF statement.
+- **Recent:** View and edit your most recent transactions.
+- **No Spreadsheets:** Stop wrangling formulas and let the bot do the work.
 
 ## Tech Stack
 
-- **Language:** Python 3.11+
-- **Telegram Framework:** aiogram (async)
-- **Database:** SQLite via aiosqlite
-- **Voice Transcription:** Groq API (Whisper model)
-- **Receipt Extraction:** Groq vision-capable model
-- **Charts:** matplotlib
-- **PDF Statements:** ReportLab
-- **CSV Export:** Python built-in csv module
+- **Python 3.11+**
+- **aiogram (v3)** — Modern async Telegram bot framework
+- **aiosqlite** — Async SQLite for fast, local storage
+- **matplotlib** — For generating in-memory pie charts
+- **reportlab** — For generating PDF financial statements
+- **Groq API** — For fast, free-tier voice transcription and vision extraction
 
-## Setup
+## Setup Instructions
 
-1. Clone this repo
-2. Create a virtual environment and activate it
-3. Install dependencies: `pip install -r requirements.txt`
-4. Copy `.env.example` to `.env` and fill in your real values
-5. Run the bot: `python main.py`
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/DEVJHAWAR11/PennyPilot.git
+   cd PennyPilot
+   ```
+
+2. Create a virtual environment and install dependencies:
+   ```bash
+   python -m venv venv
+   # On Windows:
+   .\venv\Scripts\activate
+   # On Linux/Mac:
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. Configure your Environment Variables:
+   - Copy `.env.example` to `.env`
+   - Get a bot token from [@BotFather](https://t.me/BotFather) on Telegram and set `BOT_TOKEN`.
+   - Get an API key from [Groq Console](https://console.groq.com) and set `GROQ_API_KEY`.
+
+4. Run the Bot:
+   ```bash
+   python main.py
+   ```
+
+## Usage
+
+Start a chat with your bot on Telegram and send `/start`.
+
+**Commands:**
+- `/categories` - Manage your income and expense categories.
+- `/balance` - Check your current month's net balance and savings rate.
+- `/stats` - View past months and generate visual pie charts.
+- `/export` - Download a CSV or PDF of your finances.
+- `/recent` - View and edit your latest transactions.
+- `/settings` - Configure when your financial month starts.
+- `/help` - View help documentation.
 
 ## Project Status
 

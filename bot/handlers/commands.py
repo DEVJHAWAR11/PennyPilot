@@ -42,6 +42,40 @@ async def cmd_help(message: Message) -> None:
         "/categories — Manage your custom categories and keywords.\n"
         "/balance — See your income, expenses, and net balance for the month.\n"
         "/stats — View a breakdown of your spending for past months.\n"
-        "/settings — Change your financial month start day (e.g. payday).\n",
+        "/export — Download your data as CSV or PDF.\n"
+        "/recent — View, edit, or delete recent transactions.\n"
+        "/settings — Change your financial month start day (e.g. payday).\n"
+        "/reset — ⚠️ Wipe all your data completely.\n",
         parse_mode="Markdown",
     )
+
+from aiogram import F
+from aiogram.types import CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+@router.message(Command("reset"))
+async def cmd_reset(message: Message) -> None:
+    """Show the reset confirmation menu."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⚠️ Yes, Wipe Everything", callback_data="confirm_reset")
+    builder.button(text="❌ Cancel", callback_data="cancel_reset")
+    builder.adjust(1)
+    
+    await message.answer(
+        "⚠️ **DANGER ZONE** ⚠️\n\n"
+        "Are you sure you want to completely reset your account? "
+        "This will permanently delete all your transactions, categories, and keywords, "
+        "and restore the default categories.",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "confirm_reset")
+async def cb_confirm_reset(query: CallbackQuery) -> None:
+    from bot.db.crud import reset_user_data
+    await reset_user_data(query.from_user.id)
+    await query.message.edit_text("✅ Your account has been completely reset to factory settings.")
+
+@router.callback_query(F.data == "cancel_reset")
+async def cb_cancel_reset(query: CallbackQuery) -> None:
+    await query.message.edit_text("Reset cancelled. Your data is safe.")
