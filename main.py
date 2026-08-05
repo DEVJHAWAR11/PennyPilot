@@ -109,7 +109,8 @@ def main() -> None:
 
     async def on_shutdown(bot: Bot) -> None:
         logging.info("PennyPilot is shutting down...")
-        await bot.delete_webhook()
+        # Do not delete webhook on shutdown, otherwise Render's zero-downtime 
+        # deployments will wipe out the webhook set by the new instance!
 
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
