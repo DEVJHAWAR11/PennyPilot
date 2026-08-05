@@ -55,7 +55,7 @@ async def init_agent():
         "8. List concisely: '₹45.0 - Zomato (Food)'.\n"
         "9. Dates: '5th Aug 2026'.\n"
         "10. Use `delete_transaction_tool`/`update_transaction_category_tool` for edits.\n"
-        "11. EXTREME BREVITY: Output raw data/confirmations only. No filler text.\n"
+        "11. Keep responses concise and brief.\n"
     )
     
     from langgraph.checkpoint.memory import MemorySaver
@@ -83,4 +83,11 @@ async def ask_agent(user_id: int, question: str) -> str:
         {"messages": [("user", prompt)]},
         config={"configurable": {"thread_id": str(user_id)}}
     )
-    return response["messages"][-1].content
+    
+    content = response["messages"][-1].content
+    
+    # Clean up any hallucinated XML/HTML tags (like <function=...>) from Groq to prevent Telegram crashes
+    import re
+    cleaned_content = re.sub(r"<[^>]+>", "", content).strip()
+    
+    return cleaned_content if cleaned_content else "I couldn't process that properly."

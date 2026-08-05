@@ -1,6 +1,7 @@
 import os
 import tempfile
 from collections import defaultdict
+from typing import Optional
 from fastmcp import FastMCP
 
 from bot.db.crud import get_transactions_for_period, add_transaction, get_categories, delete_transaction, update_transaction, get_transaction_by_id
@@ -10,7 +11,7 @@ from bot.services.charts import generate_pie_chart
 mcp = FastMCP("PennyPilot")
 
 @mcp.tool()
-async def query_transactions(user_id: int, start_date: str, end_date: str, category: str = None) -> list[dict]:
+async def query_transactions(user_id: int, start_date: str, end_date: str, category: Optional[str] = None) -> list[dict]:
     """Get txns in date range (YYYY-MM-DD). Optional category filter."""
     transactions = await get_transactions_for_period(user_id, start_date, end_date)
     if category:
