@@ -38,8 +38,8 @@ async def init_agent():
     
     tools = await load_mcp_tools(session)
     
-    # We use llama-3.1-8b-instant for fast, low-cost tool calling
-    llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
+    # We use llama-3.3-70b-versatile for tool calling
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
     
     system_prompt = (
         "You are PennyPilot, a helpful financial assistant.\n"
