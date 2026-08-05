@@ -22,6 +22,10 @@ GROQ_TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 async def handle_voice_message(message: Message, bot: Bot) -> None:
     """Handle voice/audio messages by transcribing and passing to the text parser."""
     
+    # Guarantee user exists in DB
+    from bot.db.crud import get_or_create_user
+    await get_or_create_user(message.from_user.id)
+    
     if not GROQ_API_KEY or GROQ_API_KEY == "your-groq-api-key-here":
         await message.reply(
             "⚠️ **Voice input is disabled.**\n"

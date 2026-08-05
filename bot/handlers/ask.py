@@ -13,6 +13,11 @@ router = Router()
 @router.message(Command("ask"))
 async def cmd_ask(message: Message) -> None:
     """Explicitly ask the AI agent a financial question."""
+    
+    # Guarantee user exists in DB
+    from bot.db.crud import get_or_create_user
+    await get_or_create_user(message.from_user.id)
+    
     # Extract the question by stripping the "/ask" prefix
     question = message.text.replace("/ask", "", 1).strip()
     

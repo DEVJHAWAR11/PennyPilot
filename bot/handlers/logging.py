@@ -45,6 +45,10 @@ async def handle_text_message(message: Message) -> None:
 async def process_transaction_text(message: Message, text: str, needs_confirmation: bool = False) -> None:
     """Core logic to parse and route a transaction text."""
     telegram_id = message.from_user.id
+    
+    # Guarantee user exists in DB
+    from bot.db.crud import get_or_create_user
+    await get_or_create_user(telegram_id)
 
     # 1. Parse the message
     parsed = parse_message(text)

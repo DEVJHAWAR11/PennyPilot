@@ -68,6 +68,10 @@ class CategoryFSM(StatesGroup):
 @router.message(Command("categories"))
 async def cmd_categories(message: Message, state: FSMContext) -> None:
     """Entry point for /categories."""
+    # Guarantee user exists in DB
+    from bot.db.crud import get_or_create_user
+    await get_or_create_user(message.from_user.id)
+    
     await state.clear()
     await show_categories_list(message.from_user.id, message.answer)
 

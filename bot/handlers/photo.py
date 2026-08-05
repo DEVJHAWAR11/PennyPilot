@@ -25,6 +25,10 @@ VISION_MODEL = "qwen/qwen3.6-27b"
 async def handle_photo_message(message: Message, bot: Bot) -> None:
     """Handle receipt photos by extracting text via Groq Vision."""
     
+    # Guarantee user exists in DB
+    from bot.db.crud import get_or_create_user
+    await get_or_create_user(message.from_user.id)
+    
     if not GROQ_API_KEY or GROQ_API_KEY == "your-groq-api-key-here":
         await message.reply(
             "⚠️ **Vision input is disabled.**\n"
