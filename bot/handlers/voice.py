@@ -47,7 +47,7 @@ async def handle_voice_message(message: Message, bot: Bot) -> None:
         # Whisper API expects a file, we provide the raw bytes with an .ogg extension 
         # (Telegram voice notes are typically OGG Opus)
         data.add_field('file', voice_bytes.getvalue(), filename='voice.ogg', content_type='audio/ogg')
-        data.add_field('model', 'whisper-large-v3')
+        data.add_field('model', 'distil-whisper-large-v3-en')
         
         async with aiohttp.ClientSession() as session:
             async with session.post(GROQ_TRANSCRIPTION_URL, headers=headers, data=data) as response:
@@ -65,9 +65,24 @@ async def handle_voice_message(message: Message, bot: Bot) -> None:
             await status_msg.edit_text("I couldn't hear any words clearly. Please try again or type it instead.")
             return
 
-        # 4. Feed into the text parser with confirmation step enabled
+        # 4. Route voice directly to the AI agent
         await status_msg.delete()
-        await process_transaction_text(message, transcribed_text, needs_confirmation=True)
+        from bot.agent.graph import ask_agent
+        reply = await ask_agent(message.from_user.id, transcribed_text)
+        
+        import re
+        if "[CHART_PATH:" in reply:
+            match = re.search(r"\[CHART_PATH:(.*?)\]", reply)
+            if match:
+                chart_path = match.group(1)
+                clean_reply = re.sub(r"\[CHART_PATH:.*?\]", "", reply).strip()
+                from aiogram.types import FSInputFile
+                photo = FSInputFile(chart_path)
+                await message.answer_photo(photo=photo, caption=clean_reply)
+            else:
+                await message.answer(reply)
+        else:
+            await message.answer(reply)
 
     except Exception as e:
         logging.exception("Error processing voice message")
