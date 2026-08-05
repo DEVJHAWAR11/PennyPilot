@@ -1,0 +1,37 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+
+# Database files
+data/*.db
+
+# Docs folder (stage documentation, never committed)
+docs/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Byte-compiled files
+*.pyc
