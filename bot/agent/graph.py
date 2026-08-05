@@ -114,7 +114,7 @@ async def ask_agent(user_id: int, question: str) -> str:
     # Pass a configurable thread_id so LangGraph maintains memory for this user's conversation
     response = await agent.ainvoke(
         {"messages": [("user", prompt)]},
-        config={"configurable": {"thread_id": str(user_id)}, "recursion_limit": 5}
+        config={"configurable": {"thread_id": str(user_id)}, "recursion_limit": 10}
     )
     
     content = response["messages"][-1].content

@@ -53,7 +53,7 @@ async def check_user_anomalies(bot: Bot) -> None:
         
         # We start a fresh thread for the anomaly check so it doesn't pollute the user's conversational memory
         thread_id = f"anomaly_check_{telegram_id}_{today.strftime('%Y%m%d')}"
-        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 5}
+        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 10}
         
         user_prompt = prompt.format(user_id=telegram_id)
         inputs = {"messages": [HumanMessage(content=user_prompt)]}
