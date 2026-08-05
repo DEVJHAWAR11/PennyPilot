@@ -91,7 +91,19 @@ async def process_transaction_text(message: Message, text: str, needs_confirmati
         # Known keyword -> log it immediately (or confirm)
         await _log_and_reply(message, telegram_id, parsed, match["id"], match["type"], match["name"], match["emoji"], keyword=keyword, needs_confirmation=needs_confirmation)
     else:
-        # Unknown keyword -> ask user
+        # If the user typed a long sentence (e.g. "i spend 300 on food today")
+        # the keyword will be long. Route this to the AI agent instead of the basic parser.
+        if len(parsed.words) > 2:
+            await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+            from bot.agent.graph import ask_agent
+            try:
+                reply = await ask_agent(telegram_id, text)
+                await message.answer(reply)
+            except Exception as e:
+                await message.answer(f"Agent error: {e}")
+            return
+            
+        # Unknown short keyword -> ask user
         pending_txns[telegram_id] = parsed
         categories = await get_categories(telegram_id)
         

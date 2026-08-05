@@ -3,7 +3,7 @@ import tempfile
 from collections import defaultdict
 from fastmcp import FastMCP
 
-from bot.db.crud import get_transactions_for_period
+from bot.db.crud import get_transactions_for_period, add_transaction, get_categories
 from bot.services.charts import generate_pie_chart
 
 # We need to initialize the fastmcp app
@@ -88,6 +88,27 @@ async def generate_chart(user_id: int, start_date: str, end_date: str) -> str:
         f.write(chart_bytes)
         
     return filepath
+
+@mcp.tool()
+async def log_transaction(user_id: int, amount: float, txn_type: str, category_name: str, note: str, date: str) -> str:
+    """
+    Log a new transaction for a user.
+    `txn_type` must be 'income' or 'expense'.
+    `date` must be YYYY-MM-DD.
+    `category_name` should be a known category like 'Food & Dining', 'Transport', 'Shopping', 'Other Expenses', etc.
+    Returns a success message with the transaction details.
+    """
+    categories = await get_categories(user_id)
+    cat = next((c for c in categories if c["name"].lower() == category_name.lower()), None)
+    
+    if not cat:
+        # Fallback to Other Expenses or Other Income if not found
+        fallback_name = "Other Expenses" if txn_type == "expense" else "Other Income"
+        cat = next((c for c in categories if c["name"].lower() == fallback_name.lower()), categories[0])
+
+    await add_transaction(user_id, amount, txn_type, cat["id"], note, date)
+    
+    return f"Successfully logged {txn_type} of {amount} in {cat['name']} on {date}. Note: {note}"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

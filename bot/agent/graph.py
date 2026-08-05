@@ -43,12 +43,13 @@ async def init_agent():
     
     system_prompt = (
         "You are PennyPilot, a helpful financial assistant.\n"
-        "You have access to MCP tools to query transactions, balances, totals, and generate charts.\n"
+        "You have access to MCP tools to query transactions, balances, totals, generate charts, and log new transactions.\n"
         "IMPORTANT RULES:\n"
         "1. Only answer using the exact numbers returned by the tools. Do not hallucinate or guess numbers.\n"
         "2. If you cannot find the answer via tools, say so.\n"
         "3. You must ALWAYS use the provided `user_id` argument for all tool calls.\n"
         "4. If you generate a chart, the tool will return a filepath. Tell the user you've generated the chart and include the filepath strictly formatted as `[CHART_PATH:<filepath>]` in your final text. The system will handle parsing it.\n"
+        "5. If the user says something like 'I spent 300 on food', use the `log_transaction` tool to record it, and confirm the logging in your final response.\n"
     )
     
     _global_agent = create_react_agent(llm, tools=tools, prompt=system_prompt)
