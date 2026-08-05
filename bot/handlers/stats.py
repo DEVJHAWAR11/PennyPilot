@@ -24,6 +24,10 @@ class StatsMonthCb(CallbackData, prefix="stats"):
     start_date: str
     end_date: str
 
+class StatsChartCb(CallbackData, prefix="stats_chart"):
+    start_date: str
+    end_date: str
+
 
 # -------------------------------------------------------------------------
 # BALANCE
@@ -145,7 +149,13 @@ async def cb_stats_month(query: CallbackQuery, callback_data: StatsMonthCb) -> N
     )
     
     builder = InlineKeyboardBuilder()
+    if sorted_cats:
+        builder.button(
+            text="📊 View Chart",
+            callback_data=StatsChartCb(start_date=start_date, end_date=end_date).pack()
+        )
     builder.button(text="⬅️ Back to Months", callback_data="stats_back")
+    builder.adjust(1)
     
     await query.message.edit_text(
         header + body + footer,
@@ -157,6 +167,47 @@ async def cb_stats_month(query: CallbackQuery, callback_data: StatsMonthCb) -> N
 async def cb_stats_back(query: CallbackQuery) -> None:
     """Return to the month selection list."""
     await cmd_stats(query.message)
+
+@router.callback_query(StatsChartCb.filter())
+async def cb_stats_chart(query: CallbackQuery, callback_data: StatsChartCb) -> None:
+    """Send a pie chart of the month's expenses."""
+    start_date = callback_data.start_date
+    end_date = callback_data.end_date
+    
+    transactions = await get_transactions_for_period(
+        query.from_user.id, start_date, end_date
+    )
+    
+    # Group expenses by category
+    cat_totals = defaultdict(float)
+    for t in transactions:
+        if t["type"] == "expense":
+            name = t["category_name"]
+            cat_totals[name] += t["amount"]
+            
+    if not cat_totals:
+        await query.answer("No expenses to chart for this period.", show_alert=True)
+        return
+        
+    await query.answer("Generating chart...")
+    
+    # Generate chart
+    from bot.services.charts import generate_pie_chart
+    chart_bytes = generate_pie_chart(cat_totals)
+    
+    # Send photo
+    from aiogram.types import BufferedInputFile
+    photo = BufferedInputFile(chart_bytes, filename="chart.png")
+    
+    s_date = date.fromisoformat(start_date)
+    e_date = date.fromisoformat(end_date)
+    caption = f"📊 **Category Breakdown ({s_date.strftime('%b %d')} - {e_date.strftime('%b %d')})**"
+    
+    await query.message.answer_photo(
+        photo=photo,
+        caption=caption,
+        parse_mode="Markdown"
+    )
 
 
 # -------------------------------------------------------------------------
